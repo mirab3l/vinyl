@@ -184,15 +184,18 @@
       <circle cx="50" cy="50" r="1.2" fill="#B5AA90"/>
       <g id="discWrap" class="off">
         <g id="disc">
+          <!-- picture disc: cover art across the whole record, matching the shelf -->
+          <clipPath id="discClip"><circle cx="50" cy="50" r="48"/></clipPath>
           <circle cx="50" cy="50" r="48" fill="var(--disc)"/>
-          <g id="grooves" fill="none" stroke="var(--groove)" stroke-width=".22"></g>
-          <circle id="labelBg" cx="50" cy="50" r="15.5" fill="#E2543B"/>
-          <clipPath id="labelClip"><circle cx="50" cy="50" r="15.5"/></clipPath>
-          <image id="lImg" x="34.5" y="34.5" width="31" height="31" preserveAspectRatio="xMidYMid slice" clip-path="url(#labelClip)" style="display:none"/>
-          <circle cx="50" cy="50" r="12.5" fill="none" id="labelRing" stroke-width=".25" opacity=".5"/>
-          <text id="lTitle" x="50" y="45.5" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="3.2" font-weight="600"></text>
-          <text id="lArtist" x="50" y="57" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="2.4" font-style="italic"></text>
-          <circle cx="50" cy="50" r="1.2" fill="var(--bg)"/>
+          <image id="dImg" x="2" y="2" width="96" height="96" preserveAspectRatio="xMidYMid slice" clip-path="url(#discClip)"/>
+          <g id="grooves" fill="none" stroke="rgba(0,0,0,.09)" stroke-width=".22"></g>
+          <circle cx="50" cy="50" r="17" fill="rgba(30,27,24,.85)"/>
+          <circle cx="50" cy="50" r="9.6" fill="var(--bg)"/>
+          <circle cx="50" cy="50" r="1.2" fill="#B5AA90"/>
+          <g style="display:none">
+            <circle id="labelBg" cx="50" cy="50" r="15.5"/>
+            <image id="lImg"/><circle id="labelRing"/><text id="lTitle"></text><text id="lArtist"></text>
+          </g>
         </g>
         <path d="M18 24 A40 40 0 0 1 40 11" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2.4" stroke-linecap="round"/>
       </g>
@@ -439,7 +442,7 @@ const gro = document.getElementById("grooves");
 for(let r=17.5;r<47.5;r+=0.9){
   const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
   c.setAttribute("cx",50);c.setAttribute("cy",50);c.setAttribute("r",r.toFixed(2));
-  if(Math.random()<.12) c.setAttribute("stroke","#34324D");
+  if(Math.random()<.12) c.setAttribute("stroke","rgba(0,0,0,.16)");
   gro.appendChild(c);
 }
 
@@ -622,7 +625,7 @@ function load(i, autoplay=true){
     $("labelRing").setAttribute("stroke",r.ink);
     $("lTitle").textContent=r.title; $("lTitle").setAttribute("fill",r.ink);
     $("lArtist").textContent=r.artist; $("lArtist").setAttribute("fill",r.ink);
-    const im=$("lImg"); im.style.display=r.img?"":"none"; if(r.img) im.setAttribute("href",r.img);
+    $("dImg").setAttribute("href", (r.img || "").replace("ab67616d00001e02","ab67616d0000b273"));   // larger cover for the big record
     ["lTitle","lArtist","labelRing"].forEach(id=>$(id).style.display=r.img?"none":"");
     wrap.classList.remove("off");
   },current===-1?0:220);
