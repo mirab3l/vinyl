@@ -101,9 +101,14 @@
   .dots{display:none}
   #sound{display:none}
   #side{display:none}
+  .intro{display:none}               /* heading hidden for now */
+  .left{justify-content:flex-start}  /* song name sits at the top */
+  .sp-note{display:none}
+  body.preview .sp-note{display:block}
   /* shelf position switch */
   .layout-switch{position:fixed;top:20px;right:20px;z-index:60;display:flex;gap:2px;padding:3px;border-radius:12px;
     background:rgba(255,255,255,.9);border:1px solid rgba(30,27,24,.1);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  body:not(.layout-bottom) .layout-switch{right:256px}
   .layout-switch button{width:34px;height:30px;border:0;border-radius:9px;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center;padding:0}
   .layout-switch button svg{width:18px;height:18px}
   .layout-switch button:hover{color:var(--ink)}
@@ -128,7 +133,7 @@
     body.layout-bottom .sleeve{margin-bottom:44px}
     body.layout-bottom .tt{width:min(78vw,520px)}
     body.layout-bottom .fab{position:fixed;right:20px;bottom:20px}
-    .layout-switch{top:12px;right:12px}
+    .layout-switch,body:not(.layout-bottom) .layout-switch{top:12px;right:12px}
   }
   #discWrap.instant{transition:none}
   .sleeve.flyer .face{transform:none}
@@ -586,6 +591,8 @@ window.onSpotifyIframeApiReady = (API) => {
     });
     c.addListener("playback_update", e => {
       const d=e.data; sp={pos:d.position, dur:d.duration, paused:d.isPaused, at:performance.now()};
+      // Spotify sends 30-second clips to people who aren't signed in: only they see the note
+      if(d.duration) document.body.classList.toggle("preview", d.duration <= 31000);
       if(wantSeek && d.duration && !d.isPaused){ const s=wantSeek; wantSeek=0; c.seek(s*d.duration/1000); }
       // keep our buttons in step if someone uses Spotify's own player
       if(!dragging && current>=0){
