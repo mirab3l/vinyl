@@ -101,6 +101,35 @@
   .dots{display:none}
   #sound{display:none}
   #side{display:none}
+  /* shelf position switch */
+  .layout-switch{position:fixed;top:20px;right:20px;z-index:60;display:flex;gap:2px;padding:3px;border-radius:12px;
+    background:rgba(255,255,255,.9);border:1px solid rgba(30,27,24,.1);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  .layout-switch button{width:34px;height:30px;border:0;border-radius:9px;background:none;color:var(--muted);cursor:pointer;display:grid;place-items:center;padding:0}
+  .layout-switch button svg{width:18px;height:18px}
+  .layout-switch button:hover{color:var(--ink)}
+  .layout-switch button[aria-pressed="true"]{background:var(--ink);color:#fff}
+  .layout-switch button:focus-visible{outline:2.5px solid #3D4BA8;outline-offset:2px}
+  /* bottom layout: one infinite row */
+  body.layout-bottom{flex-direction:column}
+  body.layout-bottom .stage{min-height:calc(100vh - 170px);padding-right:48px;grid-template-columns:minmax(300px,1fr) auto minmax(150px,1fr)}
+  body.layout-bottom .tt{width:min(calc(100vh - 170px - 180px),44vw);margin:20px 0 60px}
+  body.layout-bottom .shelf-wrap{order:1;flex:none;width:100%;height:170px;position:relative;top:auto;padding:0;border-left:0;
+    border-top:1px solid rgba(30,27,24,.07);display:block}
+  body.layout-bottom .shelf{display:flex;flex-direction:row;align-items:flex-end;gap:40px;width:100%;height:100%;max-height:none;
+    overflow-x:auto;overflow-y:hidden;padding:0;
+    background:linear-gradient(to top,transparent 0 40px,#E4DFD5 40px 44px,transparent 44px) no-repeat;background-attachment:scroll;background-size:100% 100%;background-clip:border-box;background-origin:border-box;
+    -webkit-mask-image:linear-gradient(to right,transparent 0,#000 12%,#000 88%,transparent 100%);mask-image:linear-gradient(to right,transparent 0,#000 12%,#000 88%,transparent 100%)}
+  body.layout-bottom .sleeve{flex:0 0 64px;width:64px;height:64px;margin:0 0 44px}
+  body.layout-bottom .fab{left:auto;right:32px;bottom:calc(100% + 24px);transform:none;position:absolute}
+  body.layout-bottom .fab:hover{transform:scale(1.07)} body.layout-bottom .fab:active{transform:scale(.96)}
+  @media (max-width:900px){
+    body.layout-bottom .stage{min-height:0;grid-template-columns:1fr;padding:24px 20px}
+    body.layout-bottom .shelf-wrap{height:150px}
+    body.layout-bottom .sleeve{margin-bottom:44px}
+    body.layout-bottom .tt{width:min(78vw,520px)}
+    body.layout-bottom .fab{position:fixed;right:20px;bottom:20px}
+    .layout-switch{top:12px;right:12px}
+  }
   #discWrap.instant{transition:none}
   .sleeve.flyer .face{transform:none}
   .sleeve.flyer .face img{inset:33.3%;width:33.4%;height:33.4%}
@@ -123,7 +152,7 @@
   .sheen{position:absolute;inset:2%;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .5s;
     background:conic-gradient(from 25deg,transparent 0deg,rgba(255,255,255,.14) 28deg,transparent 62deg,transparent 180deg,rgba(255,255,255,.10) 208deg,transparent 242deg);
     -webkit-mask:radial-gradient(circle,transparent 0 35%,#000 36%);mask:radial-gradient(circle,transparent 0 35%,#000 36%)}
-  body.has-record .sheen{opacity:1}
+  body.has-record .sheen,.flyer .sheen{opacity:1}
   #armSvg{filter:drop-shadow(0 6px 6px rgba(0,0,0,.22))}
   /* Spotify's player is kept on the page (it does the playing) but hidden from view */
   .sp-wrap{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;clip-path:inset(50%)}
@@ -255,6 +284,14 @@
   </div>
 </div>
 
+<div class="layout-switch" role="group" aria-label="Shelf position">
+  <button data-layout="right" title="Shelf on the right" aria-label="Shelf on the right">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="15" y="4" width="6" height="16" rx="1" fill="currentColor" stroke="none"/></svg>
+  </button>
+  <button data-layout="bottom" title="Shelf at the bottom" aria-label="Shelf at the bottom">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><rect x="3" y="15" width="18" height="5" rx="1" fill="currentColor" stroke="none"/></svg>
+  </button>
+</div>
 <div class="shelf-wrap">
   <div class="shelf" id="shelf"></div>
   <button class="fab" id="shuffle">
@@ -607,6 +644,7 @@ function makeSleeve(r,i){
   const art = r.img ? `<img src="${r.img}" alt="">` : coverArt(r);
   b.innerHTML=`<span class="face">${art}</span>`;
   b.addEventListener("click",()=>load(i,true,b));
+  b.addEventListener("pointerenter",()=>{ const im=new Image(); im.src=bigArt(r); },{once:true});   // start loading the big cover early
   
   b.addEventListener("dragleave",()=>b.classList.remove("over"));
   b.addEventListener("drop",e=>{
@@ -616,14 +654,23 @@ function makeSleeve(r,i){
   });
   return b;
 }
-let periodH=0;
+/* ---------- Shelf position: right side (two per row) or bottom (one long row) ---------- */
+const ITEM_W=104;                                          // 64px record + 40px gap in the bottom row
+let layout="right";
+try{ if(localStorage.getItem("shelfLayout")==="bottom") layout="bottom"; }catch(e){}
+const isBottom=()=>layout==="bottom";
+let period=0;
 function renderShelf(){
-  const keep = periodH ? shelf.scrollTop % periodH : 0;
+  const horiz=isBottom();
+  const pos = horiz ? shelf.scrollLeft : shelf.scrollTop;
+  const keep = period ? pos % period : 0;
   shelf.innerHTML=""; dots.innerHTML="";
-  const n=RECORDS.length, loop=!mobile.matches;
-  const reps = loop && n%2 ? 2 : 1;                       // a period must fill whole rows of two
-  periodH = Math.ceil(n*reps/2)*100;
-  const periods = loop ? 3 + Math.ceil(shelf.clientHeight/periodH) : 1;
+  const n=RECORDS.length, loop = horiz || !mobile.matches;
+  let reps=1;
+  if(horiz){ period = n*ITEM_W; }
+  else { reps = loop && n%2 ? 2 : 1; period = Math.ceil(n*reps/2)*100; }  // a period must fill whole rows of two
+  const view = horiz ? shelf.clientWidth : shelf.clientHeight;
+  const periods = loop ? 3 + Math.ceil(view/period) : 1;
   for(let p=0;p<periods*reps;p++){
     RECORDS.forEach((r,i)=>{
       const el=makeSleeve(r,i);
@@ -637,15 +684,38 @@ function renderShelf(){
     d.addEventListener("click",()=>load(i));
     dots.appendChild(d);
   });
-  if(loop) shelf.scrollTop = periodH + keep;
+  if(!loop){ period=0; return; }
+  if(horiz){ shelf.scrollTop=0; shelf.scrollLeft = period + keep; }
+  else { shelf.scrollLeft=0; shelf.scrollTop = period + keep; }
 }
 shelf.addEventListener("scroll",()=>{
-  if(mobile.matches || !periodH) return;
-  if(shelf.scrollTop < periodH*.5) shelf.scrollTop += periodH;
-  else if(shelf.scrollTop > periodH*1.5) shelf.scrollTop -= periodH;
+  if(!period) return;
+  if(isBottom()){
+    if(shelf.scrollLeft < period*.5) shelf.scrollLeft += period;
+    else if(shelf.scrollLeft > period*1.5) shelf.scrollLeft -= period;
+  } else {
+    if(shelf.scrollTop < period*.5) shelf.scrollTop += period;
+    else if(shelf.scrollTop > period*1.5) shelf.scrollTop -= period;
+  }
 },{passive:true});
+// a normal mouse wheel scrolls the bottom row sideways
+shelf.addEventListener("wheel",e=>{
+  if(!isBottom() || Math.abs(e.deltaX)>Math.abs(e.deltaY)) return;
+  e.preventDefault(); shelf.scrollLeft += e.deltaY;
+},{passive:false});
 mobile.addEventListener("change",renderShelf);
 window.addEventListener("resize",()=>{ clearTimeout(window._rs); window._rs=setTimeout(renderShelf,150); });
+
+function setLayout(next){
+  layout=next;
+  document.body.classList.toggle("layout-bottom", isBottom());
+  document.querySelectorAll(".layout-switch button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.layout===layout));
+  try{ localStorage.setItem("shelfLayout", layout); }catch(e){}
+  period=0; renderShelf();
+}
+document.querySelectorAll(".layout-switch button").forEach(b=>b.addEventListener("click",()=>setLayout(b.dataset.layout)));
+document.body.classList.toggle("layout-bottom", isBottom());
+document.querySelectorAll(".layout-switch button").forEach(b=>b.setAttribute("aria-pressed", b.dataset.layout===layout));
 
 renderShelf();
 audioEl.addEventListener("ended",()=>{ if(playing) load(current+1); });
@@ -657,41 +727,58 @@ function shelfSource(i, clicked){
   if(clicked) return clicked;
   const box=shelf.getBoundingClientRect();
   const all=[...shelf.querySelectorAll(`button.sleeve[data-i="${i}"]`)];
-  return all.find(el=>{ const r=el.getBoundingClientRect(); return r.width && r.top>=box.top+20 && r.bottom<=box.bottom-20; }) || null;
+  return all.find(el=>{ const r=el.getBoundingClientRect(); return r.width && r.top>=box.top-40 && r.bottom<=box.bottom+10 && r.left>=box.left+20 && r.right<=box.right-20 && (isBottom() || (r.top>=box.top+20 && r.bottom<=box.bottom-20)); }) || null;
+}
+const bigArt = r => (r.img || "").replace("ab67616d00001e02","ab67616d0000b273");
+function makeFlyer(box, href){
+  // an exact copy of the turntable record, so nothing changes when it lands
+  const svg=$("discSvg").cloneNode(true);
+  ["id","role","tabindex","aria-label"].forEach(a=>svg.removeAttribute(a));
+  svg.setAttribute("aria-hidden","true");
+  [...svg.children].forEach(n=>{ if(n.tagName.toLowerCase()==="circle") n.remove(); });   // drop the platter
+  svg.querySelectorAll("[id]").forEach(n=>n.id+="-fly");
+  svg.querySelectorAll("[clip-path]").forEach(n=>n.setAttribute("clip-path","url(#labelClip-fly)"));
+  svg.querySelectorAll("[filter]").forEach(n=>n.setAttribute("filter","url(#recShadow-fly)"));
+  const w=svg.querySelector("#discWrap-fly"); w.removeAttribute("class");
+  svg.querySelector("#disc-fly").removeAttribute("transform");
+  svg.querySelector("#dImg-fly").setAttribute("href",href);
+  Object.assign(svg.style,{position:"absolute",inset:"0",width:"100%",height:"100%",overflow:"visible"});
+  const el=document.createElement("div");
+  el.className="flyer";
+  Object.assign(el.style,{position:"fixed",left:box.left+"px",top:box.top+"px",width:box.width+"px",height:box.height+"px",zIndex:50,pointerEvents:"none"});
+  el.appendChild(svg);
+  const sh=document.createElement("div"); sh.className="sheen on"; el.appendChild(sh);
+  return el;
 }
 function flyIn(i, clicked, done){
   if(flight){ flight.cancel(); }
-  const tgt=$("discSvg").getBoundingClientRect();
-  if(reduceMotion.matches || !tgt.width){ done(); return; }
-  const D=tgt.width*0.96, tx=tgt.left+tgt.width/2, ty=tgt.top+tgt.height/2;
-  const src=shelfSource(i, clicked);
-  const el=document.createElement("div");
-  el.className="sleeve flyer";
-  el.innerHTML=`<span class="face">${RECORDS[i].img?`<img src="${RECORDS[i].img}" alt="">`:""}</span>`;
-  Object.assign(el.style,{position:"fixed",left:(tx-D/2)+"px",top:(ty-D/2)+"px",width:D+"px",height:D+"px",margin:0,zIndex:50,pointerEvents:"none",transition:"none"});
-  document.body.appendChild(el);
-  let from;
-  if(src){
-    const r=src.getBoundingClientRect(), sx=r.left+r.width/2, sy=r.top+r.height/2;
-    from=`translate(${sx-tx}px,${sy-ty}px) scale(${r.width/D})`;
-    src.style.visibility="hidden";
-  } else {
-    from=`translate(0,-${D*0.18}px) scale(1.12)`;          // nothing visible on the shelf: lower it in from above
-  }
-  const face=el.querySelector(".face");
-  flight=el.animate([
-    {transform:from, opacity:src?1:0},
-    {transform:`translate(0,-${D*0.06}px) scale(1.06)`, opacity:1, offset:.68},
-    {transform:"translate(0,0) scale(1)", opacity:1}
-  ],{duration:src?760:520, easing:"cubic-bezier(.45,0,.2,1)", fill:"forwards"});
-  face.animate([
-    {boxShadow:"0 4px 8px rgba(0,0,0,.28)"},
-    {boxShadow:`0 ${D*0.12}px ${D*0.16}px rgba(0,0,0,.30)`, offset:.68},
-    {boxShadow:"0 3px 8px rgba(0,0,0,.35)"}
-  ],{duration:src?760:520, easing:"cubic-bezier(.45,0,.2,1)", fill:"forwards"});
-  const finish=()=>{ if(src) src.style.visibility=""; done(); requestAnimationFrame(()=>el.remove()); flight=null; };
-  flight.onfinish=finish;
-  flight.oncancel=()=>{ if(src) src.style.visibility=""; el.remove(); };
+  const box=$("discSvg").getBoundingClientRect(), href=bigArt(RECORDS[i]);
+  const start=()=>{
+    if(reduceMotion.matches || !box.width){ $("dImg").setAttribute("href",href); done(); return; }
+    const D=box.width*0.96, tx=box.left+box.width/2, ty=box.top+box.height/2;
+    const src=shelfSource(i, clicked);
+    const el=makeFlyer(box, href);
+    document.body.appendChild(el);
+    let from;
+    if(src){
+      const r=src.getBoundingClientRect();
+      from=`translate(${r.left+r.width/2-tx}px,${r.top+r.height/2-ty}px) scale(${r.width/D})`;
+      src.style.visibility="hidden";
+    } else from=`translate(0,-${D*0.18}px) scale(1.12)`;
+    const dur=src?760:520, ease="cubic-bezier(.45,0,.2,1)";
+    flight=el.animate([
+      {transform:from, opacity:src?1:0, filter:"drop-shadow(0 2px 3px rgba(0,0,0,.2))"},
+      {transform:`translate(0,-${D*0.06}px) scale(1.06)`, opacity:1, filter:`drop-shadow(0 ${D*0.1}px ${D*0.07}px rgba(0,0,0,.28))`, offset:.68},
+      {transform:"translate(0,0) scale(1)", opacity:1, filter:"drop-shadow(0 0 0 rgba(0,0,0,0))"}
+    ],{duration:dur, easing:ease, fill:"forwards"});
+    // swap the art on the hidden turntable record once the old one has faded out
+    const swap=setTimeout(()=>$("dImg").setAttribute("href",href), 420);
+    flight.onfinish=()=>{ clearTimeout(swap); $("dImg").setAttribute("href",href); if(src) src.style.visibility=""; done(); requestAnimationFrame(()=>requestAnimationFrame(()=>el.remove())); flight=null; };
+    flight.oncancel=()=>{ clearTimeout(swap); if(src) src.style.visibility=""; el.remove(); };
+  };
+  // load the cover first so the label never pops in late
+  const img=new Image(); img.src=href;
+  Promise.race([img.decode().catch(()=>{}), new Promise(r=>setTimeout(r,250))]).then(start);
 }
 
 function load(i, autoplay=true, clicked=null){
@@ -708,11 +795,12 @@ function load(i, autoplay=true, clicked=null){
   $("play").disabled=false;
   progress=0;
   // swap the artwork on the turntable record while it's hidden
-  setTimeout(()=>{ $("dImg").setAttribute("href", (r.img || "").replace("ab67616d00001e02","ab67616d0000b273")); }, 200);
   flyIn(current, clicked, ()=>{
     if(me!==current) return;                                  // another record was picked mid-flight
+    rot=0; spin=0; $("disc").setAttribute("transform","rotate(0 50 50)");   // land exactly as the copy did
     wrap.classList.add("instant"); wrap.classList.remove("off");
-    requestAnimationFrame(()=>wrap.classList.remove("instant"));
+    getComputedStyle(wrap).opacity;                            // apply it now, with no fade
+    wrap.classList.remove("instant");
     if(autoplay) setTimeout(()=>{ if(me===current) play(); },120);
   });
 }
