@@ -101,6 +101,22 @@
   .dots{display:none}
   #sound{display:none}
   #side{display:none}
+  .controls{display:none}            /* pause/play now happens by clicking the record */
+  .fab{position:absolute;left:50%;bottom:32px;transform:translateX(-50%);z-index:3;width:56px;height:56px;border-radius:50%;
+    border:0;padding:0;display:grid;place-items:center;background:var(--ink);color:#fff;cursor:pointer;
+    box-shadow:0 8px 18px rgba(0,0,0,.24),0 2px 4px rgba(0,0,0,.18);transition:transform .2s cubic-bezier(.3,1.4,.5,1),box-shadow .2s}
+  .fab:hover{transform:translateX(-50%) scale(1.07);box-shadow:0 10px 22px rgba(0,0,0,.28),0 2px 4px rgba(0,0,0,.18)}
+  .fab:active{transform:translateX(-50%) scale(.96)}
+  .fab:focus-visible{outline:2.5px solid #3D4BA8;outline-offset:3px}
+  .fab svg{width:22px;height:22px}
+  #armSvg{pointer-events:none}
+  #armHit{pointer-events:stroke}
+  #discSvg{cursor:pointer;border-radius:50%;outline:none}
+  #discSvg:focus-visible{outline:2.5px solid #3D4BA8;outline-offset:4px}
+  @media (max-width:900px){
+    .fab{position:fixed;left:auto;right:20px;bottom:20px;transform:none}
+    .fab:hover{transform:scale(1.07)} .fab:active{transform:scale(.96)}
+  }
   .sheen{position:absolute;inset:2%;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .5s;
     background:conic-gradient(from 25deg,transparent 0deg,rgba(255,255,255,.14) 28deg,transparent 62deg,transparent 180deg,rgba(255,255,255,.10) 208deg,transparent 242deg);
     -webkit-mask:radial-gradient(circle,transparent 0 35%,#000 36%);mask:radial-gradient(circle,transparent 0 35%,#000 36%)}
@@ -163,7 +179,7 @@
 <div class="stage">
   <div class="left">
     <div class="intro">
-      <h1>Pick a record, or let the shuffle choose.</h1>
+      <h1>Pull a record off the shelf.</h1>
     </div>
 
     <div class="now" aria-live="polite">
@@ -174,10 +190,6 @@
       <p class="sp-note">Sign in at open.spotify.com in this browser to hear full songs. Otherwise you'll hear 30-second previews.</p>
       <div class="dots" id="dots"></div>
       <div class="controls">
-        <button class="pill solid" id="shuffle">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
-          Shuffle
-        </button>
         <button class="pill" id="play" disabled>
           <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
           <span id="playText">Play</span>
@@ -187,7 +199,7 @@
   </div>
 
   <div class="tt" id="tt">
-    <svg viewBox="0 0 100 100" aria-hidden="true">
+    <svg viewBox="0 0 100 100" id="discSvg" role="button" aria-label="Play or pause" tabindex="0">
       <circle cx="50" cy="50" r="48.5" fill="var(--platter)"/>
       <circle cx="50" cy="50" r="1.2" fill="#B5AA90"/>
       <defs>
@@ -242,6 +254,9 @@
 
 <div class="shelf-wrap">
   <div class="shelf" id="shelf"></div>
+  <button class="fab" id="shuffle" aria-label="Shuffle" title="Shuffle">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+  </button>
 </div>
 
 <script>
@@ -667,6 +682,9 @@ const shuffle=()=>{ let i; do{ i=Math.floor(Math.random()*RECORDS.length); }whil
 
 $("play").addEventListener("click",()=>playing?pause():play());
 $("shuffle").addEventListener("click",shuffle);
+const toggleRecord=()=>{ if(current<0) shuffle(); else playing?pause():play(); };
+$("discSvg").addEventListener("click",toggleRecord);
+$("discSvg").addEventListener("keydown",e=>{ if(e.key==="Enter"){ e.preventDefault(); toggleRecord(); } });
 $("sound").addEventListener("click",()=>{
   muted=!muted; if(master) master.gain.value=muted?0:.5; audioEl.muted=muted;
   $("sound").classList.toggle("off",muted); $("soundText").textContent=muted?"Sound off":"Sound on";
