@@ -581,6 +581,7 @@ function schedule(){
 /* ---------- Spotify player ---------- */
 const audioEl = new Audio(); const hasFile = () => false;   // leftovers from the file-based version
 let ctrl=null, loadedUri=null, wantPlay=false, wantSeek=0, pendingStart=null, advancing=false;
+let starting=false, startTimer=null;   // true while Spotify is loading a song we asked it to play
 let sp={pos:0,dur:0,paused:true,at:0};
 const uriOf = i => "spotify:track:"+RECORDS[i].id;
 window.onSpotifyIframeApiReady = (API) => {
@@ -590,12 +591,14 @@ window.onSpotifyIframeApiReady = (API) => {
       if(wantPlay){ wantPlay=false; c.play(); }
     });
     c.addListener("playback_update", e => {
-      const d=e.data; sp={pos:d.position, dur:d.duration, paused:d.isPaused, at:performance.now()};
+      const d=e.data; sp={pos:d.position, dur:d.duration, paused:d.isPaused || d.isBuffering || d.position===0, at:performance.now()};
       // Spotify sends 30-second clips to people who aren't signed in: only they see the note
       if(d.duration) document.body.classList.toggle("preview", d.duration <= 31000);
       if(wantSeek && d.duration && !d.isPaused){ const s=wantSeek; wantSeek=0; c.seek(s*d.duration/1000); }
       // keep our buttons in step if someone uses Spotify's own player
-      if(!dragging && current>=0){
+      if(d.playingURI && d.playingURI!==loadedUri) return;     // an update about the previous song
+      if(starting && !d.isPaused){ starting=false; clearTimeout(startTimer); }
+      if(!dragging && current>=0 && !starting){
         if(d.isPaused && playing && !(d.duration && d.position>=d.duration-1200)) setPaused();
         if(!d.isPaused && !playing) setPlaying();
       }
@@ -606,6 +609,9 @@ window.onSpotifyIframeApiReady = (API) => {
 };
 function startAudio(p){
   if(current<0) return;
+  // Spotify reports "paused" for a moment while a song loads: don't let that lift the needle
+  starting=true; clearTimeout(startTimer);
+  startTimer=setTimeout(()=>{ starting=false; if(sp.paused && playing) setPaused(); }, 5000);
   if(!ctrl){ pendingStart=p; return; }
   const uri=uriOf(current);
   if(loadedUri!==uri){ loadedUri=uri; wantPlay=true; wantSeek=p>0.01?p:0; sp={pos:0,dur:0,paused:true,at:performance.now()}; ctrl.loadUri(uri); }
@@ -614,14 +620,14 @@ function startAudio(p){
     ctrl.resume();
   }
 }
-function stopAudio(){ if(ctrl) ctrl.pause(); }
+function stopAudio(){ starting=false; clearTimeout(startTimer); if(ctrl) ctrl.pause(); }
 function setPlaying(){
   playing=true; setArm(START+progress*(END-START));
   setTimeout(()=>{ if(playing) tt.classList.add("tracking"); },600);
   $("playText").textContent="Pause"; $("playIcon").innerHTML='<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
 }
-function setPaused(){
-  playing=false; tt.classList.remove("tracking"); setArm(REST);
+function setPaused(keepArm){
+  playing=false; tt.classList.remove("tracking"); if(!keepArm) setArm(REST);
   $("playText").textContent="Play"; $("playIcon").innerHTML='<path d="M7 4v16l13-8z"/>';
 }
 
@@ -816,7 +822,7 @@ function play(){
   if(progress>=1) progress=0;
   startAudio(progress); setPlaying();
 }
-function pause(){ stopAudio(); setPaused(); }
+function pause(keepArm){ stopAudio(); setPaused(keepArm===true); }
 const shuffle=()=>{ let i; do{ i=Math.floor(Math.random()*RECORDS.length); }while(RECORDS.length>1&&i===current); load(i); };
 
 $("play").addEventListener("click",()=>playing?pause():play());
