@@ -73,12 +73,16 @@
 
   .sleeve{position:relative;flex:0 0 auto;width:76px;height:76px;border:0;padding:0;background:none;cursor:pointer;
     border-radius:50%;transition:transform .3s cubic-bezier(.3,1.4,.5,1)}
-  .sleeve .face{position:absolute;inset:0;border-radius:50%;overflow:hidden;background:var(--c1);transition:transform .3s cubic-bezier(.3,1.4,.5,1)}
-  .sleeve .face svg,.sleeve .face img{width:100%;height:100%;display:block;object-fit:cover}
-  .sleeve .face::before{content:"";position:absolute;inset:0;border-radius:50%;
-    background:repeating-radial-gradient(circle,rgba(0,0,0,.07) 0 1px,transparent 1px 3px)}
-  .sleeve .face::after{content:"";position:absolute;inset:40%;border-radius:50%;background:var(--bg);
-    box-shadow:0 0 0 5px rgba(30,27,24,.85)}
+  .sleeve .face{position:absolute;inset:0;border-radius:50%;overflow:hidden;transition:transform .3s cubic-bezier(.3,1.4,.5,1);
+    background:
+      repeating-radial-gradient(circle,rgba(255,255,255,.05) 0 .6px,transparent .6px 2.2px),
+      radial-gradient(circle,#0d0c10 0 41%,#141318 42% 100%);
+    box-shadow:0 4px 8px rgba(0,0,0,.28),inset 0 0 0 1.5px rgba(255,255,255,.07)}
+  .sleeve .face img,.sleeve .face svg{position:absolute;inset:30%;width:40%;height:40%;border-radius:50%;object-fit:cover}
+  .sleeve .face::before{content:"";position:absolute;inset:0;border-radius:50%;z-index:1;pointer-events:none;
+    background:conic-gradient(from 25deg,transparent 0deg,rgba(255,255,255,.16) 28deg,transparent 62deg,transparent 180deg,rgba(255,255,255,.11) 208deg,transparent 242deg);
+    -webkit-mask:radial-gradient(circle,transparent 0 40%,#000 41%);mask:radial-gradient(circle,transparent 0 40%,#000 41%)}
+  .sleeve .face::after{content:"";position:absolute;inset:47.5%;border-radius:50%;background:var(--bg);z-index:2}
   .sleeve:hover,.sleeve:focus-visible{transform:translateY(-7px)}
   .sleeve.on .face{transform:scale(1.22)}
   .sleeve .tip{position:absolute;left:50%;top:calc(100% + 12px);transform:translateX(-50%);white-space:nowrap;
@@ -97,6 +101,11 @@
   .dots{display:none}
   #sound{display:none}
   #side{display:none}
+  .sheen{position:absolute;inset:2%;border-radius:50%;pointer-events:none;opacity:0;transition:opacity .5s;
+    background:conic-gradient(from 25deg,transparent 0deg,rgba(255,255,255,.14) 28deg,transparent 62deg,transparent 180deg,rgba(255,255,255,.10) 208deg,transparent 242deg);
+    -webkit-mask:radial-gradient(circle,transparent 0 35%,#000 36%);mask:radial-gradient(circle,transparent 0 35%,#000 36%)}
+  body.has-record .sheen{opacity:1}
+  #armSvg{filter:drop-shadow(0 6px 6px rgba(0,0,0,.22))}
   /* Spotify's player is kept on the page (it does the playing) but hidden from view */
   .sp-wrap{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;clip-path:inset(50%)}
   .sp-wrap>div,#spEmbed{width:300px;height:80px}
@@ -181,26 +190,37 @@
     <svg viewBox="0 0 100 100" aria-hidden="true">
       <circle cx="50" cy="50" r="48.5" fill="var(--platter)"/>
       <circle cx="50" cy="50" r="1.2" fill="#B5AA90"/>
-      <g id="discWrap" class="off">
+      <defs>
+        <filter id="recShadow" x="-10%" y="-10%" width="120%" height="125%">
+          <feDropShadow dx="0" dy="1.4" stdDeviation="1.6" flood-color="#000" flood-opacity=".35"/>
+        </filter>
+        <clipPath id="labelClip"><circle cx="50" cy="50" r="16"/></clipPath>
+      </defs>
+      <g id="discWrap" class="off" filter="url(#recShadow)">
         <g id="disc">
-          <!-- picture disc: cover art across the whole record, matching the shelf -->
-          <clipPath id="discClip"><circle cx="50" cy="50" r="48"/></clipPath>
-          <circle cx="50" cy="50" r="48" fill="var(--disc)"/>
-          <image id="dImg" x="2" y="2" width="96" height="96" preserveAspectRatio="xMidYMid slice" clip-path="url(#discClip)"/>
-          <g id="grooves" fill="none" stroke="rgba(0,0,0,.09)" stroke-width=".22"></g>
-          <circle cx="50" cy="50" r="17" fill="rgba(30,27,24,.85)"/>
-          <circle cx="50" cy="50" r="9.6" fill="var(--bg)"/>
-          <circle cx="50" cy="50" r="1.2" fill="#B5AA90"/>
+          <circle cx="50" cy="50" r="48" fill="#141318"/>
+          <g id="grooves" fill="none" stroke="rgba(255,255,255,.045)" stroke-width=".22"></g>
+          <!-- gaps between tracks -->
+          <circle cx="50" cy="50" r="38" fill="none" stroke="rgba(0,0,0,.55)" stroke-width=".55"/>
+          <circle cx="50" cy="50" r="30.5" fill="none" stroke="rgba(0,0,0,.55)" stroke-width=".55"/>
+          <circle cx="50" cy="50" r="23.5" fill="none" stroke="rgba(0,0,0,.55)" stroke-width=".55"/>
+          <!-- smooth run-out band around the label -->
+          <circle cx="50" cy="50" r="18.2" fill="#0d0c10"/>
+          <circle cx="50" cy="50" r="16" fill="#2A2622"/>
+          <image id="dImg" x="34" y="34" width="32" height="32" preserveAspectRatio="xMidYMid slice" clip-path="url(#labelClip)"/>
+          <circle cx="50" cy="50" r="16" fill="none" stroke="rgba(0,0,0,.3)" stroke-width=".3"/>
+          <circle cx="50" cy="50" r="1.3" fill="var(--bg)"/>
           <g style="display:none">
-            <circle id="labelBg" cx="50" cy="50" r="15.5"/>
-            <image id="lImg"/><circle id="labelRing"/><text id="lTitle"></text><text id="lArtist"></text>
+            <circle id="labelBg"/><image id="lImg"/><circle id="labelRing"/><text id="lTitle"></text><text id="lArtist"></text>
           </g>
         </g>
-        <path d="M18 24 A40 40 0 0 1 40 11" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2.4" stroke-linecap="round"/>
+        <!-- raised outer rim -->
+        <circle cx="50" cy="50" r="47.7" fill="none" stroke="rgba(255,255,255,.08)" stroke-width=".5"/>
       </g>
     </svg>
         <p class="hint">Drag the needle to skip through a track. <kbd>←</kbd> <kbd>→</kbd> step through records. <kbd>space</kbd> plays and pauses.</p>
-    <div class="empty" id="empty">Pick a record or shuffle</div>
+    <div class="sheen" aria-hidden="true"></div>
+    <div class="empty" id="empty">Pick a record to start listening</div>
     <svg viewBox="0 0 100 100" id="armSvg">
       <circle cx="96" cy="6" r="6.5" fill="#E6E2D9"/>
       <g id="arm" style="transform-origin:96px 6px">
@@ -441,7 +461,7 @@ const gro = document.getElementById("grooves");
 for(let r=17.5;r<47.5;r+=0.9){
   const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
   c.setAttribute("cx",50);c.setAttribute("cy",50);c.setAttribute("r",r.toFixed(2));
-  if(Math.random()<.12) c.setAttribute("stroke","rgba(0,0,0,.16)");
+  if(Math.random()<.14) c.setAttribute("stroke","rgba(255,255,255,.085)");
   gro.appendChild(c);
 }
 
