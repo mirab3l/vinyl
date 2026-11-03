@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Vinyl Shelf</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#FFFFFF; --line:rgba(30,27,24,.05); --ink:#1E1B18; --muted:#6F6656;
+    --disc:#1C1A2E; --groove:#2A2840; --shelf:#D8CFB8; --shelf-edge:#BFB497; --platter:#F1EFEA;
+    --shelf-h:215px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;overflow-x:hidden}
+  body{
+    background-color:var(--bg);
+    color:var(--ink);font-family:"Cormorant Garamond",Georgia,serif;
+    min-height:100vh;overflow-x:hidden;
+  }
+  button{font:inherit;color:inherit}
+
+  /* ---------- Stage ---------- */
+  .stage{position:relative;display:grid;grid-template-columns:minmax(280px,1fr) auto minmax(180px,1fr);
+    gap:24px;min-height:calc(100vh - var(--shelf-h));padding:40px 48px 40px}
+  .left{display:flex;flex-direction:column;justify-content:space-between;gap:36px;min-width:0}
+  h1{font-weight:400;font-size:clamp(36px,3.6vw,56px);line-height:1;margin:0 0 18px;letter-spacing:-.01em}
+  .lede{font-style:italic;font-size:clamp(19px,1.6vw,23px);line-height:1.45;color:#3E372D;margin:0 0 18px;max-width:30ch}
+  .hint{font-style:italic;font-size:17px;line-height:1.7;color:var(--muted);max-width:32ch;margin:0}
+  kbd{display:inline-grid;place-items:center;min-width:30px;height:26px;padding:0 6px;border:1.5px solid var(--muted);
+    border-radius:6px;font-family:inherit;font-style:normal;font-size:15px;vertical-align:middle;margin:0 2px}
+
+  .now .side{font-style:italic;font-size:18px;color:var(--muted)}
+  .now .title{font-size:clamp(28px,2.6vw,40px);line-height:1.05;margin:4px 0 2px;min-height:1.05em}
+  .now .artist{font-size:19px;color:var(--muted);min-height:1.3em}
+  .dots{display:flex;gap:10px;margin:16px 0 20px}
+  .dot{width:14px;height:14px;border-radius:50%;border:1.5px solid var(--ink);background:none;padding:0;cursor:pointer}
+  .dot.on{background:var(--ink)}
+  .controls{display:flex;gap:10px;flex-wrap:wrap}
+  .pill{border:1.5px solid var(--ink);background:transparent;height:44px;padding:0 20px;border-radius:22px;cursor:pointer;
+    display:inline-flex;align-items:center;gap:9px;font-size:19px;transition:background .15s,color .15s}
+  .pill:hover{background:var(--ink);color:var(--bg)}
+  .pill.solid{background:var(--ink);color:var(--bg)}
+  .pill.solid:hover{background:#3a342d}
+  .pill:disabled{opacity:.35;cursor:default;background:transparent;color:var(--ink)}
+  .pill svg{width:16px;height:16px}
+  .pill:focus-visible,.sleeve:focus-visible,.dot:focus-visible{outline:2.5px solid #3D4BA8;outline-offset:3px}
+
+  .right{display:flex;flex-direction:column;align-items:flex-end}
+  .sound .led{width:9px;height:9px;border-radius:50%;background:var(--disc)}
+  .sound.off .led{background:transparent;box-shadow:inset 0 0 0 1.5px var(--ink)}
+
+  /* ---------- Turntable ---------- */
+  .tt{position:relative;align-self:center;width:min(calc(100vh - var(--shelf-h) - 190px),46vw);min-width:340px;margin:30px 0;aspect-ratio:1}
+  .tt::before{content:"";position:absolute;inset:-7%;border:1px dashed rgba(60,50,30,.25);border-radius:50%}
+  .tt::after{content:"";position:absolute;inset:-15%;border:1px solid rgba(60,50,30,.14);border-radius:50%}
+  .tt svg{position:absolute;inset:0;width:100%;height:100%;overflow:visible}
+  #discWrap{transition:opacity .4s,transform .4s;transform-origin:50px 50px;transform-box:view-box}
+  #discWrap.off{opacity:0;transform:scale(.92)}
+  .empty{position:absolute;inset:0;display:grid;place-items:center;font-style:italic;font-size:20px;color:var(--muted);
+    pointer-events:none;transition:opacity .3s;text-align:center}
+  #armHit{cursor:grab;pointer-events:stroke}
+  .dragging #armHit{cursor:grabbing}
+  #arm{transition:transform .6s cubic-bezier(.5,0,.2,1)}
+  .dragging #arm,.tracking #arm{transition:none}
+
+  /* ---------- Shelf (loose discs in a tray) ---------- */
+  .shelf-wrap{position:relative;height:var(--shelf-h);display:flex;align-items:center;justify-content:center;padding:0 20px 28px}
+  .shelf{display:flex;gap:26px;align-items:center;overflow-x:auto;scrollbar-width:none;max-width:100%;
+    padding:24px 34px 44px}
+  .shelf::-webkit-scrollbar{display:none}
+
+  .sleeve{position:relative;flex:0 0 auto;width:76px;height:76px;border:0;padding:0;background:none;cursor:pointer;
+    border-radius:50%;transition:transform .3s cubic-bezier(.3,1.4,.5,1)}
+  .sleeve .face{position:absolute;inset:0;border-radius:50%;overflow:hidden;background:var(--c1);transition:transform .3s cubic-bezier(.3,1.4,.5,1)}
+  .sleeve .face svg,.sleeve .face img{width:100%;height:100%;display:block;object-fit:cover}
+  .sleeve .face::before{content:"";position:absolute;inset:0;border-radius:50%;
+    background:repeating-radial-gradient(circle,rgba(0,0,0,.07) 0 1px,transparent 1px 3px)}
+  .sleeve .face::after{content:"";position:absolute;inset:40%;border-radius:50%;background:var(--bg);
+    box-shadow:0 0 0 5px rgba(30,27,24,.85)}
+  .sleeve:hover,.sleeve:focus-visible{transform:translateY(-7px)}
+  .sleeve.on .face{transform:scale(1.22)}
+  .sleeve .tip{position:absolute;left:50%;top:calc(100% + 12px);transform:translateX(-50%);white-space:nowrap;
+    font-style:italic;font-size:15px;color:var(--muted);opacity:0;pointer-events:none;transition:opacity .2s}
+  .sleeve:hover .tip,.sleeve:focus-visible .tip,.sleeve.on .tip{opacity:1}
+  .sleeve.on .tip{top:calc(100% + 18px)}
+  .sleeve.over .face{outline:2.5px dashed var(--ink);outline-offset:4px}
+  .sleeve.add{border:1.5px dashed var(--muted);display:grid;place-items:center;color:var(--muted)}
+  .sleeve.add:hover{border-color:var(--ink);color:var(--ink)}
+  .sleeve.add .plus{font-size:28px;line-height:1}
+  .sleeve.add input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .sleeve.add.over{outline:2.5px dashed var(--ink);outline-offset:4px}
+
+  .tt .hint{display:none;position:absolute;top:calc(100% + 26px);left:50%;transform:translateX(-50%);width:max-content;
+    max-width:min(560px,90vw);text-align:center;font-size:16px;line-height:1.8;z-index:1;background:var(--bg);padding:2px 14px}
+  .dots{display:none}
+  #sound{display:none}
+  #side{display:none}
+  /* Spotify's player is kept on the page (it does the playing) but hidden from view */
+  .sp-wrap{position:absolute;width:1px;height:1px;overflow:hidden;opacity:0;pointer-events:none;clip-path:inset(50%)}
+  .sp-wrap>div,#spEmbed{width:300px;height:80px}
+  .sp-wrap iframe{display:block;border:0}
+  .sp-note{font-size:14px;color:var(--muted);margin:0 0 16px;max-width:34ch;font-style:italic}
+  .tt::before,.tt::after{display:none}
+  .tt .empty{inset:auto;top:calc(100% + 26px);left:50%;transform:translateX(-50%);white-space:nowrap;
+    font-size:16px;color:#262629;display:block;background:var(--bg);padding:2px 12px}
+  .now{opacity:0;visibility:hidden;transition:opacity .4s,visibility .4s}
+  body.has-record .now{opacity:1;visibility:visible}
+  .now .artist{margin-bottom:18px}
+  .controls .pill{height:36px;padding:0 15px;font-size:16px;gap:7px}
+  .controls .pill svg{width:13px;height:13px}
+  /* ---------- Right-side shelf layout ---------- */
+  body{display:flex}
+  .stage{flex:1;min-height:100vh;padding-right:24px;grid-template-columns:minmax(340px,1fr) auto minmax(150px,.6fr)}
+  .tt{width:min(calc(100vh - 230px),40vw);margin:0 0 70px}
+  .shelf-wrap{order:1;flex:0 0 236px;height:100vh;position:sticky;top:0;padding:0 28px;
+    display:flex;align-items:stretch;justify-content:center;border-left:1px solid rgba(30,27,24,.07)}
+  .add-rec{position:absolute;top:40px;left:50%;transform:translateX(-50%);z-index:2;background:var(--bg);height:40px;font-size:17px;white-space:nowrap}
+  .add-rec input{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+  .add-rec.over{outline:2.5px dashed var(--ink);outline-offset:4px}
+  .shelf{display:grid;grid-template-columns:repeat(2,64px);grid-auto-rows:100px;column-gap:40px;row-gap:0;
+    align-items:end;justify-items:center;height:100vh;overflow-y:auto;overflow-x:hidden;scrollbar-width:none;
+    padding:0 18px;width:auto;align-content:start;
+    -webkit-mask-image:linear-gradient(transparent 0,#000 22%,#000 82%,transparent 100%);mask-image:linear-gradient(transparent 0,#000 22%,#000 82%,transparent 100%);
+    background:repeating-linear-gradient(to bottom,transparent 0 96px,#E4DFD5 96px 100px);
+    background-origin:content-box;background-clip:content-box;background-attachment:local}
+  .sleeve{width:64px;height:64px;margin-bottom:4px}
+  .sleeve .tip{display:none}
+  .sleeve .face{transform-origin:50% 100%}
+  .sleeve.on .face{transform:scale(1.22)}
+  @media (prefers-reduced-motion:reduce){ *{transition-duration:.01ms!important} }
+  @media (max-width:900px){
+    :root{--shelf-h:150px}
+    .stage{grid-template-columns:1fr;height:auto;padding:24px 20px}
+    .stage{overflow:hidden}
+    .right{order:-1;align-items:flex-end}
+    .tt{width:min(78vw,520px);min-width:0;justify-self:center;margin:40px 0 130px;order:1}
+    .left{display:contents}
+    .intro{order:0}
+    .now{order:2}
+    body{flex-direction:column}
+    .shelf-wrap{order:1;flex:none;height:auto;position:static;border-left:0;padding:0 20px 24px;flex-direction:column;align-items:center}
+    .add-rec{position:static;transform:none;margin:8px 0 4px}
+    .shelf{grid-template-columns:repeat(4,60px);column-gap:24px;height:auto;padding:16px 0 0;overflow:visible;-webkit-mask-image:none;mask-image:none;
+      background:repeating-linear-gradient(to bottom,transparent 0 96px,#E4DFD5 96px 100px);background-origin:content-box;background-clip:content-box}
+    .sleeve{width:60px;height:60px}
+    .sleeve{width:60px;height:60px}
+  }
+</style>
+</head>
+<body>
+
+<div class="stage">
+  <div class="left">
+    <div class="intro">
+      <h1>A long-playing<br>shelf of records</h1>
+      <p class="lede">Pick a record, or let the shuffle choose.</p>
+    </div>
+
+    <div class="now" aria-live="polite">
+      <div class="side" id="side">&nbsp;</div>
+      <div class="title" id="title">No record yet</div>
+      <div class="artist" id="artist">&nbsp;</div>
+      <div class="sp-wrap"><div id="spEmbed"></div></div>
+      <p class="sp-note">Sign in at open.spotify.com in this browser to hear full songs. Otherwise you'll hear 30-second previews.</p>
+      <div class="dots" id="dots"></div>
+      <div class="controls">
+        <button class="pill solid" id="shuffle">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5"/></svg>
+          Shuffle
+        </button>
+        <button class="pill" id="play" disabled>
+          <svg id="playIcon" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4v16l13-8z"/></svg>
+          <span id="playText">Play</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="tt" id="tt">
+    <svg viewBox="0 0 100 100" aria-hidden="true">
+      <circle cx="50" cy="50" r="48.5" fill="var(--platter)"/>
+      <circle cx="50" cy="50" r="1.2" fill="#B5AA90"/>
+      <g id="discWrap" class="off">
+        <g id="disc">
+          <circle cx="50" cy="50" r="48" fill="var(--disc)"/>
+          <g id="grooves" fill="none" stroke="var(--groove)" stroke-width=".22"></g>
+          <circle id="labelBg" cx="50" cy="50" r="15.5" fill="#E2543B"/>
+          <clipPath id="labelClip"><circle cx="50" cy="50" r="15.5"/></clipPath>
+          <image id="lImg" x="34.5" y="34.5" width="31" height="31" preserveAspectRatio="xMidYMid slice" clip-path="url(#labelClip)" style="display:none"/>
+          <circle cx="50" cy="50" r="12.5" fill="none" id="labelRing" stroke-width=".25" opacity=".5"/>
+          <text id="lTitle" x="50" y="45.5" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="3.2" font-weight="600"></text>
+          <text id="lArtist" x="50" y="57" text-anchor="middle" font-family="Cormorant Garamond, serif" font-size="2.4" font-style="italic"></text>
+          <circle cx="50" cy="50" r="1.2" fill="var(--bg)"/>
+        </g>
+        <path d="M18 24 A40 40 0 0 1 40 11" fill="none" stroke="rgba(255,255,255,.08)" stroke-width="2.4" stroke-linecap="round"/>
+      </g>
+    </svg>
+        <p class="hint">Drag the needle to skip through a track. <kbd>←</kbd> <kbd>→</kbd> step through records. <kbd>space</kbd> plays and pauses.</p>
+    <div class="empty" id="empty">Pick a record or shuffle</div>
+    <svg viewBox="0 0 100 100" id="armSvg">
+      <circle cx="96" cy="6" r="6.5" fill="#E6E2D9"/>
+      <g id="arm" style="transform-origin:96px 6px">
+        <rect x="94.2" y="-6" width="3.6" height="7" rx=".8" fill="#2A2622"/>
+        <line x1="96" y1="6" x2="96" y2="60" stroke="#2A2622" stroke-width="1.4" stroke-linecap="round"/>
+        <rect x="93.6" y="59" width="4.8" height="7.5" rx=".8" fill="#2A2622"/>
+        <rect x="94.6" y="60.2" width="2.8" height="1.2" rx=".3" fill="#FFFFFF" opacity=".7"/>
+        <line id="armHit" x1="96" y1="2" x2="96" y2="67" stroke="transparent" stroke-width="9"/>
+      </g>
+      <circle cx="96" cy="6" r="3.4" fill="#2A2622"/>
+      <circle cx="96" cy="6" r="1.2" fill="#8A8070"/>
+    </svg>
+  </div>
+
+  <div class="right">
+    <button class="pill sound" id="sound"><span class="led"></span><span id="soundText">Sound on</span></button>
+  </div>
+</div>
+
+<div class="shelf-wrap">
+  <div class="shelf" id="shelf"></div>
+</div>
+
+<script>
+/* ---------- Placeholder records (swap for real assets later) ---------- */
+const RECORDS = [
+{
+"title": "BIRDS OF A FEATHER",
+"artist": "Billie Eilish",
+"id": "6dOtVTDdiauQNBQEDOtlAB",
+"img": "https://i.scdn.co/image/ab67616d00001e0271d62ea7ea8a5be92d3c1f62",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Beauty And A Beat",
+"artist": "Justin Bieber, Nicki Minaj",
+"id": "6QFCMUUq1T2Vf5sFUXcuQ7",
+"img": "https://i.scdn.co/image/ab67616d00001e02f1d02a6cec967f8b6b78f76e",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Man I Need",
+"artist": "Olivia Dean",
+"id": "1qbmS6ep2hbBRaEZFpn7BX",
+"img": "https://i.scdn.co/image/ab67616d00001e02e3d69e17dde129037a1f09e2",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Housewife",
+"artist": "Tate McRae",
+"id": "2sFepQNyl1WjpROruP8bJ0",
+"img": "https://i.scdn.co/image/ab67616d00001e02f2d3185e46b03c243f60ce53",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "expectations (feat. Chappell Roan)",
+"artist": "Olivia Rodrigo, Chappell Roan",
+"id": "3XmwAZpIMNpTJy8faw3ajD",
+"img": "https://i.scdn.co/image/ab67616d00001e02706ab55cf3e8cb64efb0ccba",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Treat You Better",
+"artist": "Shawn Mendes",
+"id": "3QGsuHI8jO1Rx4JWLUh9jd",
+"img": "https://i.scdn.co/image/ab67616d00001e021376b4b16f4bfcba02dc571b",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Stateside + Zara Larsson",
+"artist": "PinkPantheress, Zara Larsson",
+"id": "1DwscornXpj8fmOmYVlqZt",
+"img": "https://i.scdn.co/image/ab67616d00001e02684ecc5bc1b724d0106ad694",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "That's What I Like",
+"artist": "Bruno Mars",
+"id": "0KKkJNfGyhkQ5aFogxQAPU",
+"img": "https://i.scdn.co/image/ab67616d00001e02232711f7d66a1e19e89e28c5",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Just Give Me a Reason",
+"artist": "P!nk, Nate Ruess",
+"id": "1mKXFLRA179hdOWQBwUk9e",
+"img": "https://i.scdn.co/image/ab67616d00001e0224a1ac503b55e6eef9a7bb8c",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Attention",
+"artist": "Charlie Puth",
+"id": "5cF0dROlMOK5uNZtivgu50",
+"img": "https://i.scdn.co/image/ab67616d00001e02897f73256b9128a9d70eaf66",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "WHERE IS MY HUSBAND!",
+"artist": "RAYE",
+"id": "7eYzn1CuiJK6VvUhf8zA6k",
+"img": "https://i.scdn.co/image/ab67616d00001e0297c0928704e5a2bd8d4c5b90",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "As It Was",
+"artist": "Harry Styles",
+"id": "4Dvkj6JhhA12EX05fT7y2e",
+"img": "https://i.scdn.co/image/ab67616d00001e0282ce362511fb3d9dda6578ee",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Fame is a Gun",
+"artist": "Addison Rae",
+"id": "7B3BwNecBhKvNwSMOOl7Gk",
+"img": "https://i.scdn.co/image/ab67616d00001e02089511953028cbfeb095c593",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "That’s So True",
+"artist": "Gracie Abrams",
+"id": "7ne4VBA60CxGM75vw0EYad",
+"img": "https://i.scdn.co/image/ab67616d00001e021dac3694b3289cd903cb3acf",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Paparazzi",
+"artist": "Lady Gaga",
+"id": "02XnQdf7sipaKBBHixz3Zp",
+"img": "https://i.scdn.co/image/ab67616d00001e02e691217483df8798445c82e2",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Shape of You",
+"artist": "Ed Sheeran",
+"id": "7qiZfU4dY1lWllzX7mPBI3",
+"img": "https://i.scdn.co/image/ab67616d00001e02ba5db46f4b838ef6027e6f96",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "7 rings",
+"artist": "Ariana Grande",
+"id": "6ocbgoVGwYJhOv1GgI9NsF",
+"img": "https://i.scdn.co/image/ab67616d00001e0256ac7b86e090f307e218e9c8",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Levitating",
+"artist": "Dua Lipa",
+"id": "39LLxExYz6ewLAcYrzQQyP",
+"img": "https://i.scdn.co/image/ab67616d00001e02c88bae7846e62a8ba59ee0bd",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Toxic",
+"artist": "Britney Spears",
+"id": "6I9VzXrHxO9rA9A5euc8Ak",
+"img": "https://i.scdn.co/image/ab67616d00001e02efc6988972cb04105f002cd4",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Payphone",
+"artist": "Maroon 5, Wiz Khalifa",
+"id": "1XGmzt0PVuFgQYYnV2It7A",
+"img": "https://i.scdn.co/image/ab67616d00001e02fc8633e22a7dba6aab817bff",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Cruel Summer",
+"artist": "Taylor Swift",
+"id": "1BxfuPKGuaTgP7aM0Bbdwr",
+"img": "https://i.scdn.co/image/ab67616d00001e02e787cffec20aa2a396a61647",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Sweet but Psycho",
+"artist": "Ava Max",
+"id": "7DnAm9FOTWE3cUvso43HhI",
+"img": "https://i.scdn.co/image/ab67616d00001e02ea46ceca00d552337e5b8ac2",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Love Me Not",
+"artist": "Ravyn Lenae",
+"id": "4WFgvKVfEhb3IUAFGrutTR",
+"img": "https://i.scdn.co/image/ab67616d00001e020e62daaea2c7b94053e1c142",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+},
+{
+"title": "Closer",
+"artist": "The Chainsmokers, Halsey",
+"id": "7BKLCZ1jbUBVqRi2FVlTVw",
+"img": "https://i.scdn.co/image/ab67616d00001e02495ce6da9aeb159e94eaa453",
+"c1": "#2A2622",
+"ink": "#FFFFFF"
+}
+];
+
+const coverArt = (r) => {
+  const a = r.c2;
+  const s = {
+    sun:  `<circle cx="50" cy="60" r="26" fill="${a}"/><rect x="0" y="70" width="100" height="30" fill="${r.c1}"/>`,
+    wave: `<path d="M0 55 Q25 35 50 55 T100 55 V100 H0Z" fill="${a}"/>`,
+    grid: [0,1,2].map(i=>[0,1,2].map(j=>`<rect x="${12+i*28}" y="${12+j*28}" width="20" height="20" rx="3" fill="${(i+j)%2?a:'none'}" stroke="${a}" stroke-width="3"/>`).join("")).join(""),
+    rings:`<circle cx="50" cy="50" r="36" fill="none" stroke="${a}" stroke-width="6"/><circle cx="50" cy="50" r="20" fill="none" stroke="${a}" stroke-width="6"/>`,
+    split:`<rect x="50" y="0" width="50" height="100" fill="${a}"/><circle cx="50" cy="50" r="18" fill="${r.c1}"/>`,
+    arch: `<path d="M20 100 V50 A30 30 0 0 1 80 50 V100Z" fill="${a}"/>`,
+    tri:  `<path d="M50 18 L84 80 H16Z" fill="${a}"/>`,
+    dots: [0,1,2,3].map(i=>[0,1,2,3].map(j=>`<circle cx="${17+i*22}" cy="${17+j*22}" r="6" fill="${a}"/>`).join("")).join("")
+  }[r.shape];
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">${s}</svg>`;
+};
+
+/* grooves */
+const gro = document.getElementById("grooves");
+for(let r=17.5;r<47.5;r+=0.9){
+  const c=document.createElementNS("http://www.w3.org/2000/svg","circle");
+  c.setAttribute("cx",50);c.setAttribute("cy",50);c.setAttribute("r",r.toFixed(2));
+  if(Math.random()<.12) c.setAttribute("stroke","#34324D");
+  gro.appendChild(c);
+}
+
+/* ---------- Audio: a generated track per record so it works with no files ---------- */
+const LOOP = 32, TOTAL = 32*8;            // 8 loops of 32 sixteenth-notes per track
+let ctx, master, timer, step=0, nextTime=0, t0=0, p0=0, muted=false;
+let current=-1, playing=false, pattern=[];
+function ensureAudio(){
+  if(!ctx){
+    ctx = new (window.AudioContext||window.webkitAudioContext)();
+    master = ctx.createGain(); master.gain.value = muted?0:.5;
+    const lp = ctx.createBiquadFilter(); lp.type="lowpass"; lp.frequency.value=2400;
+    master.connect(lp).connect(ctx.destination);
+  }
+  if(ctx.state==="suspended") ctx.resume();
+}
+const hz = m => 440*Math.pow(2,(m-69)/12);
+function rng(seed){ return () => (seed=(seed*16807)%2147483647)/2147483647; }
+function note(f,t,d,type,v){
+  const o=ctx.createOscillator(),g=ctx.createGain(); o.type=type; o.frequency.value=f;
+  g.gain.setValueAtTime(0,t); g.gain.linearRampToValueAtTime(v,t+.01); g.gain.exponentialRampToValueAtTime(.0001,t+d);
+  o.connect(g).connect(master); o.start(t); o.stop(t+d+.05);
+}
+function kick(t){
+  const o=ctx.createOscillator(),g=ctx.createGain();
+  o.frequency.setValueAtTime(140,t); o.frequency.exponentialRampToValueAtTime(40,t+.15);
+  g.gain.setValueAtTime(.7,t); g.gain.exponentialRampToValueAtTime(.001,t+.3);
+  o.connect(g).connect(master); o.start(t); o.stop(t+.35);
+}
+function hat(t){
+  const b=ctx.createBuffer(1,ctx.sampleRate*.05,ctx.sampleRate),d=b.getChannelData(0);
+  for(let i=0;i<d.length;i++) d[i]=Math.random()*2-1;
+  const s=ctx.createBufferSource(),f=ctx.createBiquadFilter(),g=ctx.createGain();
+  s.buffer=b; f.type="highpass"; f.frequency.value=7000; g.gain.value=.12;
+  s.connect(f).connect(g).connect(master); s.start(t);
+}
+function buildPattern(r,seed){
+  const rand=rng(seed+1);
+  pattern=Array.from({length:LOOP},(_,i)=>({
+    mel: rand()<.45 ? r.root+12+r.scale[Math.floor(rand()*r.scale.length)] : null,
+    bass: i%8===0 ? r.root-12+r.scale[[0,0,3,1][Math.floor(i/8)]%r.scale.length] : null
+  }));
+}
+const sixteenth = () => 60/RECORDS[current].bpm/4;
+function schedule(){
+  const r=RECORDS[current], s=sixteenth();
+  while(nextTime < ctx.currentTime+.12 && step < TOTAL){
+    const p=pattern[step%LOOP], intro=step<LOOP, outro=step>=TOTAL-LOOP;
+    if(step%4===0 && !intro) kick(nextTime);
+    if(step%2===1 && !outro) hat(nextTime);
+    if(p.bass) note(hz(p.bass),nextTime,s*7,"sine",.35);
+    if(p.mel)  note(hz(p.mel),nextTime,s*2.5,r.wave,r.wave==="sine"||r.wave==="triangle"?.18:.07);
+    nextTime+=s; step++;
+  }
+}
+/* ---------- Spotify player ---------- */
+const audioEl = new Audio(); const hasFile = () => false;   // leftovers from the file-based version
+let ctrl=null, loadedUri=null, wantPlay=false, wantSeek=0, pendingStart=null, advancing=false;
+let sp={pos:0,dur:0,paused:true,at:0};
+const uriOf = i => "spotify:track:"+RECORDS[i].id;
+window.onSpotifyIframeApiReady = (API) => {
+  API.createController($("spEmbed"), {width:"300", height:"80", uri:uriOf(0)}, c => {
+    ctrl=c; loadedUri=uriOf(0);
+    c.addListener("ready", () => {
+      if(wantPlay){ wantPlay=false; c.play(); }
+    });
+    c.addListener("playback_update", e => {
+      const d=e.data; sp={pos:d.position, dur:d.duration, paused:d.isPaused, at:performance.now()};
+      if(wantSeek && d.duration && !d.isPaused){ const s=wantSeek; wantSeek=0; c.seek(s*d.duration/1000); }
+      // keep our buttons in step if someone uses Spotify's own player
+      if(!dragging && current>=0){
+        if(d.isPaused && playing && !(d.duration && d.position>=d.duration-1200)) setPaused();
+        if(!d.isPaused && !playing) setPlaying();
+      }
+      if(playing && !advancing && d.duration && d.position>=d.duration-600){ advancing=true; setTimeout(()=>{advancing=false; load(current+1);},400); }
+    });
+    if(pendingStart!==null){ const p=pendingStart; pendingStart=null; startAudio(p); }
+  });
+};
+function startAudio(p){
+  if(current<0) return;
+  if(!ctrl){ pendingStart=p; return; }
+  const uri=uriOf(current);
+  if(loadedUri!==uri){ loadedUri=uri; wantPlay=true; wantSeek=p>0.01?p:0; sp={pos:0,dur:0,paused:true,at:performance.now()}; ctrl.loadUri(uri); }
+  else{
+    if(sp.dur && Math.abs(p*sp.dur - sp.pos) > 1500) ctrl.seek(p*sp.dur/1000);
+    ctrl.resume();
+  }
+}
+function stopAudio(){ if(ctrl) ctrl.pause(); }
+function setPlaying(){
+  playing=true; setArm(START+progress*(END-START));
+  setTimeout(()=>{ if(playing) tt.classList.add("tracking"); },600);
+  $("playText").textContent="Pause"; $("playIcon").innerHTML='<path d="M6 4h4v16H6zM14 4h4v16h-4z"/>';
+}
+function setPaused(){
+  playing=false; tt.classList.remove("tracking"); setArm(REST);
+  $("playText").textContent="Play"; $("playIcon").innerHTML='<path d="M7 4v16l13-8z"/>';
+}
+
+/* ---------- Tonearm geometry (degrees, rotating around the pivot) ---------- */
+const REST=-6, START=7, END=29;          // off the record / outer groove / inner groove
+let armAngle=REST, progress=0, dragging=false;
+const arm=document.getElementById("arm"), tt=document.getElementById("tt");
+const setArm = a => { armAngle=a; arm.style.transform=`rotate(${a}deg)`; };
+setArm(REST);
+
+/* ---------- UI ---------- */
+const $=id=>document.getElementById(id);
+const shelf=$("shelf"), dots=$("dots");
+
+const nameOf = file => file.name.replace(/\.[^.]+$/,"").replace(/[_-]+/g," ").trim() || "Untitled";
+function applyFiles(r, files){
+  for(const file of files){
+    if(file.type.startsWith("image/")) r.img=URL.createObjectURL(file);
+    else if(file.type.startsWith("audio/")){ r.audio=URL.createObjectURL(file); r.title=nameOf(file); r.artist="Added by you"; }
+  }
+}
+const mobile = matchMedia("(max-width:900px)");
+function makeSleeve(r,i){
+  const b=document.createElement("button");
+  b.className="sleeve"+(i===current?" on":""); b.dataset.i=i; b.style.setProperty("--c1",r.c1);
+  b.setAttribute("aria-label",`Play ${r.title} by ${r.artist}`); b.title=r.title;
+  const art = r.img ? `<img src="${r.img}" alt="">` : coverArt(r);
+  b.innerHTML=`<span class="face">${art}</span>`;
+  b.addEventListener("click",()=>load(i));
+  
+  b.addEventListener("dragleave",()=>b.classList.remove("over"));
+  b.addEventListener("drop",e=>{
+    e.preventDefault(); b.classList.remove("over");
+    applyFiles(r,e.dataTransfer.files); renderShelf();
+    if(i===current){ const p=playing; load(i,false); if(p) setTimeout(play,350); }
+  });
+  return b;
+}
+let periodH=0;
+function renderShelf(){
+  const keep = periodH ? shelf.scrollTop % periodH : 0;
+  shelf.innerHTML=""; dots.innerHTML="";
+  const n=RECORDS.length, loop=!mobile.matches;
+  const reps = loop && n%2 ? 2 : 1;                       // a period must fill whole rows of two
+  periodH = Math.ceil(n*reps/2)*100;
+  const periods = loop ? 3 + Math.ceil(shelf.clientHeight/periodH) : 1;
+  for(let p=0;p<periods*reps;p++){
+    RECORDS.forEach((r,i)=>{
+      const el=makeSleeve(r,i);
+      if(p>0){ el.tabIndex=-1; el.setAttribute("aria-hidden","true"); }   // copies are for looking, not tabbing
+      shelf.appendChild(el);
+    });
+  }
+  RECORDS.forEach((r,i)=>{
+    const d=document.createElement("button");
+    d.className="dot"+(i===current?" on":""); d.setAttribute("aria-label",`Track ${i+1}: ${r.title}`);
+    d.addEventListener("click",()=>load(i));
+    dots.appendChild(d);
+  });
+  if(loop) shelf.scrollTop = periodH + keep;
+}
+shelf.addEventListener("scroll",()=>{
+  if(mobile.matches || !periodH) return;
+  if(shelf.scrollTop < periodH*.5) shelf.scrollTop += periodH;
+  else if(shelf.scrollTop > periodH*1.5) shelf.scrollTop -= periodH;
+},{passive:true});
+mobile.addEventListener("change",renderShelf);
+window.addEventListener("resize",()=>{ clearTimeout(window._rs); window._rs=setTimeout(renderShelf,150); });
+
+renderShelf();
+audioEl.addEventListener("ended",()=>{ if(playing) load(current+1); });
+
+function load(i, autoplay=true){
+  current=(i+RECORDS.length)%RECORDS.length;
+  const r=RECORDS[current];
+  [...shelf.querySelectorAll("button.sleeve")].forEach(s=>s.classList.toggle("on",+s.dataset.i===current));
+  [...dots.children].forEach((d,j)=>d.classList.toggle("on",j===current));
+  const wrap=$("discWrap");
+  pause(true);
+  wrap.classList.add("off");
+  setTimeout(()=>{
+    $("labelBg").setAttribute("fill",r.c1);
+    $("labelRing").setAttribute("stroke",r.ink);
+    $("lTitle").textContent=r.title; $("lTitle").setAttribute("fill",r.ink);
+    $("lArtist").textContent=r.artist; $("lArtist").setAttribute("fill",r.ink);
+    const im=$("lImg"); im.style.display=r.img?"":"none"; if(r.img) im.setAttribute("href",r.img);
+    ["lTitle","lArtist","labelRing"].forEach(id=>$(id).style.display=r.img?"none":"");
+    wrap.classList.remove("off");
+  },current===-1?0:220);
+  $("empty").style.opacity=0; document.body.classList.add("has-record");
+  $("side").textContent=`Track ${String(current+1).padStart(2,"0")}`;
+  $("title").textContent=r.title; $("artist").textContent=r.artist;
+  $("play").disabled=false;
+  /* synth pattern not used in the Spotify version */
+  audioEl.pause(); if(r.audio){ audioEl.src=r.audio; audioEl.load(); } else audioEl.removeAttribute("src");
+  progress=0;
+  if(autoplay) setTimeout(()=>play(),350);
+}
+function play(){
+  if(current<0) return;
+  if(progress>=1) progress=0;
+  startAudio(progress); setPlaying();
+}
+function pause(){ stopAudio(); setPaused(); }
+const shuffle=()=>{ let i; do{ i=Math.floor(Math.random()*RECORDS.length); }while(RECORDS.length>1&&i===current); load(i); };
+
+$("play").addEventListener("click",()=>playing?pause():play());
+$("shuffle").addEventListener("click",shuffle);
+$("sound").addEventListener("click",()=>{
+  muted=!muted; if(master) master.gain.value=muted?0:.5; audioEl.muted=muted;
+  $("sound").classList.toggle("off",muted); $("soundText").textContent=muted?"Sound off":"Sound on";
+});
+document.addEventListener("keydown",e=>{
+  if(e.target.closest("input,textarea")) return;
+  if(e.key==="ArrowRight"){ e.preventDefault(); load(current<0?0:current+1); }
+  if(e.key==="ArrowLeft"){ e.preventDefault(); load(current<0?RECORDS.length-1:current-1); }
+  if(e.code==="Space" && !e.target.closest("button")){ e.preventDefault(); if(current<0) shuffle(); else playing?pause():play(); }
+});
+
+/* ---------- Dragging the needle ---------- */
+const armSvg=$("armSvg");
+function angleFrom(e){
+  const b=armSvg.getBoundingClientRect();
+  const x=(e.clientX-b.left)/b.width*100, y=(e.clientY-b.top)/b.height*100;
+  return Math.max(REST-4,Math.min(END+1,Math.atan2(-(x-96),y-6)*180/Math.PI));
+}
+$("armHit").addEventListener("pointerdown",e=>{
+  e.preventDefault(); dragging=true; tt.classList.add("dragging"); tt.classList.remove("tracking");
+  $("armHit").setPointerCapture(e.pointerId);
+});
+$("armHit").addEventListener("pointermove",e=>{ if(dragging) setArm(angleFrom(e)); });
+const endDrag=()=>{
+  if(!dragging) return; dragging=false; tt.classList.remove("dragging");
+  if(armAngle>=START-2){
+    progress=Math.max(0,Math.min(.98,(armAngle-START)/(END-START)));
+    if(current<0){ load(Math.floor(Math.random()*RECORDS.length)); return; }
+    play();
+  } else { pause(); }
+};
+$("armHit").addEventListener("pointerup",endDrag);
+$("armHit").addEventListener("pointercancel",endDrag);
+
+/* ---------- Frame loop: spin the disc, move the needle inward ---------- */
+let rot=0, last=performance.now(), spin=0;
+const disc=$("disc");
+function frame(now){
+  const dt=(now-last)/1000; last=now;
+  const target = playing && !dragging ? 1 : 0;
+  spin += (target-spin)*Math.min(1,dt*3);                 // spin up / wind down
+  rot = (rot + spin*200*dt) % 360;                        // ~33 rpm
+  disc.setAttribute("transform",`rotate(${rot} 50 50)`);
+  if(playing && !dragging){
+    progress = sp.dur ? Math.min(1,(sp.pos + (sp.paused?0:performance.now()-sp.at))/sp.dur) : 0;
+    if(false){}
+    else if(tt.classList.contains("tracking")) setArm(START+progress*(END-START));
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+<script src="https://open.spotify.com/embed/iframe-api/v1" async></script>
+</body>
+</html>
